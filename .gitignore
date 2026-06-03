@@ -1,0 +1,30 @@
+# Compiled artifacts
+target/
+Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+*.rs.bk
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+*.o
+*.rlib
+*.dll
+*.so
+*.dylib
+
+# Private documentation (not for public repo)
+REQUIREMENTS.md
+ITERATION_PLAN.md
