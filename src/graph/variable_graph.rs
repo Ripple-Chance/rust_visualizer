@@ -37,11 +37,11 @@ impl GraphBuilder {
         let mut builder = Self::new();
         
         for event in events {
-            match event {
-                AnalysisEvent::VarDefined(var) => {
+            match &event.kind {
+                super::super::parser::events::EventKind::VarDefined(var) => {
                     builder.add_variable(var);
                 }
-                AnalysisEvent::VarUsed { name, scope_level, .. } => {
+                super::super::parser::events::EventKind::VarUsed { name, scope_level } => {
                     builder.record_use(name, *scope_level);
                 }
                 _ => {}

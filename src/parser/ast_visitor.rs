@@ -1,7 +1,8 @@
 use proc_macro2::Span;
 use syn::{visit::Visit, spanned::Spanned, ItemFn, Pat, PatType, Stmt};
 
-use super::events::{AnalysisEvent, Function, Variable};
+use crate::analysis::BorrowKind;
+use super::events::{AnalysisEvent, EventKind, Function, Variable};
 
 #[derive(Debug, Default)]
 pub struct AstVisitor {
@@ -54,10 +55,34 @@ impl AstVisitor {
     }
 
     fn record_var_use(&mut self, name: &str, span: Span) {
-        self.events.push(AnalysisEvent::VarUsed {
-            name: name.to_string(),
+        self.events.push(AnalysisEvent {
+            kind: EventKind::VarUsed {
+                name: name.to_string(),
+                scope_level: self.scope_level,
+            },
             span,
-            scope_level: self.scope_level,
+        });
+    }
+
+    fn record_borrow(&mut self, name: &str, kind: BorrowKind, span: Span) {
+        self.events.push(AnalysisEvent {
+            kind: EventKind::BorrowCreated {
+                name: name.to_string(),
+                kind,
+                scope_level: self.scope_level,
+            },
+            span,
+        });
+    }
+
+    fn record_move(&mut self, name: &str, target: Option<String>, span: Span, is_function_call: bool) {
+        self.events.push(AnalysisEvent {
+            kind: EventKind::OwnershipMoved {
+                name: name.to_string(),
+                target,
+                is_function_call,
+            },
+            span,
         });
     }
 }
@@ -86,22 +111,29 @@ impl<'ast> Visit<'ast> for AstVisitor {
             scope_level: self.scope_level,
         };
 
-        self.events.push(AnalysisEvent::FuncDefined(func));
+        self.events.push(AnalysisEvent {
+            kind: EventKind::FuncDefined(func),
+            span: i.sig.ident.span(),
+        });
 
         for param in params {
-            self.events.push(AnalysisEvent::VarDefined(param));
+            let span = param.span;
+            self.events.push(AnalysisEvent {
+                kind: EventKind::VarDefined(param),
+                span,
+            });
         }
 
         self.scope_level += 1;
-        self.events.push(AnalysisEvent::ScopeEnter {
-            level: self.scope_level,
+        self.events.push(AnalysisEvent {
+            kind: EventKind::ScopeEnter { level: self.scope_level },
             span: i.block.stmts.first().map_or(i.sig.ident.span(), |s| s.span()),
         });
 
         syn::visit::visit_item_fn(self, i);
 
-        self.events.push(AnalysisEvent::ScopeExit {
-            level: self.scope_level,
+        self.events.push(AnalysisEvent {
+            kind: EventKind::ScopeExit { level: self.scope_level },
             span: i.sig.ident.span(),
         });
         self.scope_level -= 1;
@@ -111,7 +143,14 @@ impl<'ast> Visit<'ast> for AstVisitor {
         match s {
             Stmt::Local(local) => {
                 for var in self.extract_var_from_pat(&local.pat) {
-                    self.events.push(AnalysisEvent::VarDefined(var));
+                    self.events.push(AnalysisEvent {
+                        kind: EventKind::VarDefined(var),
+                        span: local.pat.span(),
+                    });
+                }
+                
+                if let Some(init) = &local.init {
+                    self.visit_expr(&init.expr);
                 }
             }
             Stmt::Expr(expr, _) => {
@@ -138,11 +177,39 @@ impl<'ast> Visit<'ast> for AstVisitor {
                         self.record_var_use(&ident.to_string(), ident.span());
                     }
                 }
-                syn::visit::visit_expr_call(self, call);
+                
+                for arg in &call.args {
+                    self.visit_expr(arg);
+                }
             }
             syn::Expr::MethodCall(method) => {
                 self.record_var_use(&method.method.to_string(), method.method.span());
                 syn::visit::visit_expr_method_call(self, method);
+            }
+            syn::Expr::Reference(ref_expr) => {
+                let kind = if ref_expr.mutability.is_some() {
+                    BorrowKind::Mutable
+                } else {
+                    BorrowKind::Immutable
+                };
+                
+                if let syn::Expr::Path(path) = &*ref_expr.expr {
+                    if let Some(ident) = path.path.get_ident() {
+                        self.record_borrow(&ident.to_string(), kind, ref_expr.span());
+                    }
+                }
+                syn::visit::visit_expr_reference(self, ref_expr);
+            }
+            syn::Expr::Assign(assign) => {
+                if let syn::Expr::Path(path) = &*assign.left {
+                    if let Some(ident) = path.path.get_ident() {
+                        self.record_var_use(&ident.to_string(), ident.span());
+                    }
+                }
+                self.visit_expr(&assign.right);
+            }
+            syn::Expr::Closure(closure) => {
+                syn::visit::visit_expr_closure(self, closure);
             }
             _ => {
                 syn::visit::visit_expr(self, e);
@@ -170,15 +237,15 @@ impl<'ast> Visit<'ast> for AstVisitor {
 
     fn visit_block(&mut self, b: &'ast syn::Block) {
         self.scope_level += 1;
-        self.events.push(AnalysisEvent::ScopeEnter {
-            level: self.scope_level,
+        self.events.push(AnalysisEvent {
+            kind: EventKind::ScopeEnter { level: self.scope_level },
             span: b.span(),
         });
 
         syn::visit::visit_block(self, b);
 
-        self.events.push(AnalysisEvent::ScopeExit {
-            level: self.scope_level,
+        self.events.push(AnalysisEvent {
+            kind: EventKind::ScopeExit { level: self.scope_level },
             span: b.span(),
         });
         self.scope_level -= 1;
