@@ -1,0 +1,32 @@
+# Compiled artifacts
+target/
+Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+*.rs.bk
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+*.o
+*.rlib
+*.dll
+*.so
+*.dylib
+
+# Private documentation (managed by branch isolation)
+# v0.1.0-mvp branch: contains MVP.md, TEST_REPORT.md
+# v1.0.0 branch: contains V1_TEST_REPORT.md, MVP_VS_V1.md
+REQUIREMENTS.md
+ITERATION_PLAN.md
