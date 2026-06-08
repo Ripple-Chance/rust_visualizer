@@ -4,9 +4,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct BorrowInfo {
-    pub name: String,
     pub kind: BorrowKind,
-    pub span: Span,
     pub scope_level: usize,
     pub is_active: bool,
     pub references: Vec<String>,
@@ -65,7 +63,7 @@ impl BorrowAnalyzer {
         }
     }
 
-    fn handle_scope_exit(&mut self, level: usize, span: Span) {
+    fn handle_scope_exit(&mut self, level: usize, _span: Span) {
         let names_to_check: Vec<String> = self.borrows.keys().cloned().collect();
         
         for name in names_to_check {
@@ -76,11 +74,6 @@ impl BorrowAnalyzer {
                     if borrow.scope_level == level && borrow.is_active {
                         borrow.is_active = false;
                         active_kind = Some(borrow.kind.clone());
-                        self.results.push(AnalysisResult::BorrowDropped {
-                            name: name.clone(),
-                            kind: borrow.kind.clone(),
-                            span,
-                        });
                     }
                 }
                 
@@ -102,9 +95,7 @@ impl BorrowAnalyzer {
 
     pub fn track_borrow(&mut self, name: &str, kind: BorrowKind, span: Span, scope_level: usize) {
         let borrow_info = BorrowInfo {
-            name: name.to_string(),
             kind: kind.clone(),
-            span,
             scope_level,
             is_active: true,
             references: Vec::new(),
@@ -117,8 +108,6 @@ impl BorrowAnalyzer {
             kind,
             name: name.to_string(),
             span,
-            scope_level,
-            is_return: false,
         }));
     }
 

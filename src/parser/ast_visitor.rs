@@ -74,17 +74,6 @@ impl AstVisitor {
             span,
         });
     }
-
-    fn record_move(&mut self, name: &str, target: Option<String>, span: Span, is_function_call: bool) {
-        self.events.push(AnalysisEvent {
-            kind: EventKind::OwnershipMoved {
-                name: name.to_string(),
-                target,
-                is_function_call,
-            },
-            span,
-        });
-    }
 }
 
 impl<'ast> Visit<'ast> for AstVisitor {
@@ -106,9 +95,7 @@ impl<'ast> Visit<'ast> for AstVisitor {
 
         let func = Function {
             name: i.sig.ident.to_string(),
-            span: i.sig.ident.span(),
             parameters: params.clone(),
-            scope_level: self.scope_level,
         };
 
         self.events.push(AnalysisEvent {

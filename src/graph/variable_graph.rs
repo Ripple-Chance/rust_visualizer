@@ -12,13 +12,7 @@ pub struct VarNode {
     pub used: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum VarEdge {
-    Use,
-    Define,
-}
-
-pub type VarGraph = DiGraph<VarNode, VarEdge>;
+pub type VarGraph = DiGraph<VarNode, ()>;
 
 pub struct GraphBuilder {
     graph: VarGraph,
@@ -85,14 +79,6 @@ impl GraphBuilder {
                 }
             }
         }
-    }
-
-    pub fn get_graph(&self) -> &VarGraph {
-        &self.graph
-    }
-
-    pub fn list_variables(&self) -> Vec<&VarNode> {
-        self.graph.node_weights().collect()
     }
 
     pub fn find_unused_variables(&self) -> Vec<&VarNode> {
