@@ -1,364 +1,201 @@
-# RustVisualizer 使用说明
+# Rust Visualizer 使用说明
 
-本文档提供 RustVisualizer 工具的详细使用指南。
+**版本**: 2.0  
+**更新日期**: 2026-06-09  
 
-## 目录
+## 概述
 
-- [安装](#安装)
-- [基本用法](#基本用法)
-- [命令行参数](#命令行参数)
-- [输出格式](#输出格式)
-- [API 使用](#api-使用)
-- [示例代码](#示例代码)
-- [常见问题](#常见问题)
+Rust Visualizer 是一个用于可视化 Rust 代码变量所有权关系的工具。它可以分析 Rust 源代码，追踪变量的所有权状态变化，并生成可视化输出。
 
----
+## 快速开始
 
-## 安装
-
-### 从源码编译
+### 安装
 
 ```bash
 # 克隆仓库
-git clone https://github.com/Ripple-Chance/rust_visualizer.git
+git clone https://github.com/your-repo/rust_visualizer.git
 cd rust_visualizer
 
-# 编译 Release 版本（优化过的二进制文件）
+# 构建项目
 cargo build --release
-
-# 编译 Debug 版本（包含调试信息）
-cargo build
 ```
 
-### 验证安装
+### 基本用法
 
 ```bash
-# 查看帮助信息
-cargo run --release -- --help
+# 分析 Rust 文件
+cargo run --release -- analyze <input_file.rs>
+
+# 生成 DOT 文件
+cargo run --release -- analyze <input_file.rs> --dot output.dot
+
+# 生成 SVG 文件
+cargo run --release -- analyze <input_file.rs> --svg output.svg
+
+# 同时生成 DOT 和 SVG
+cargo run --release -- analyze <input_file.rs> --dot output.dot --svg output.svg
 ```
-
----
-
-## 基本用法
-
-### 分析单个文件
-
-```bash
-# 基本分析
-cargo run --release -- examples/demo.rs
-
-# 指定输入文件
-cargo run --release -- /path/to/your/rust_file.rs
-```
-
-### 生成可视化输出
-
-```bash
-# 生成 DOT 格式（Graphviz）
-cargo run --release -- examples/demo.rs --dot output.dot
-
-# 生成 SVG 格式
-cargo run --release -- examples/demo.rs --svg output.svg
-```
-
----
 
 ## 命令行参数
 
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| `<INPUT>` | 输入的 Rust 源文件路径 | `examples/demo.rs` |
-| `--dot <FILE>` | 导出 DOT 格式到指定文件 | `--dot graph.dot` |
-| `--svg <FILE>` | 导出 SVG 格式到指定文件 | `--svg graph.svg` |
-| `--show-unused` | 显示未使用的变量 | `--show-unused` |
-| `--horizontal` | 使用水平布局（默认垂直） | `--horizontal` |
-| `--no-scope` | 不显示作用域分组 | `--no-scope` |
-| `-h, --help` | 显示帮助信息 | `--help` |
-| `-V, --version` | 显示版本信息 | `--version` |
+```
+rust_visualizer analyze <input> [--dot <output>] [--svg <output>]
 
-### 示例
+位置参数：
+  input               要分析的 Rust 源文件路径
+
+选项：
+  --dot <output>      生成 DOT 格式文件
+  --svg <output>      生成 SVG 格式文件
+  --help              显示帮助信息
+```
+
+## 使用示例
+
+### 示例 1：分析示例文件
 
 ```bash
-# 完整示例：分析文件并生成水平布局的 SVG
-cargo run --release -- examples/ownership_test.rs --svg output.svg --horizontal
-
-# 不显示未使用变量，使用垂直布局
-cargo run --release -- examples/demo.rs --dot analysis.dot --show-unused=false
+# 分析 examples 目录下的测试文件
+cargo run --release -- analyze examples/test_scope.rs --dot examples/test_scope.dot --svg examples/test_scope.svg
 ```
 
----
+### 示例 2：分析自定义文件
 
-## 输出格式
+```bash
+# 创建一个简单的 Rust 文件
+echo 'fn main() { let x = 42; let y = x; }' > test.rs
 
-### 1. DOT 格式（Graphviz）
-
-DOT 是 Graphviz 使用的图形描述语言，生成的 `.dot` 文件可以使用以下工具打开：
-
-- **命令行工具**: `dot -Tpng graph.dot -o graph.png`
-- **在线工具**: [Graphviz Online](https://dreampuf.github.io/GraphvizOnline/)
-- **桌面应用**: [Graphviz for macOS/Windows](https://www.graphviz.org/download/)
-
-**DOT 输出特性**:
-- 节点颜色表示所有权状态
-  - 🟢 绿色: Owned（被拥有）
-  - 🟠 橙色: Moved（已转移）
-  - 🔵 蓝色: Borrowed（已借用）
-  - ⚪ 灰色: Dropped（已销毁）
-- 子图（subgraph cluster）表示不同作用域
-- 箭头表示变量关系
-
-### 2. SVG 格式
-
-SVG 是一种矢量图形格式，可以直接在浏览器中打开或嵌入到文档中。
-
-**SVG 输出特性**:
-- 自动生成图例
-- 显示统计信息（节点数、边数）
-- 可缩放，不失真
-- 支持在浏览器中直接查看
-
-### 3. 文本输出
-
-默认情况下，工具会输出分析事件的文本描述：
-
-```
-[DEFINE] x: mut (scope: 0)
-[DEFINE] y: immut (scope: 0)
-[USE] x
-[MOVE] x -> y
-[OWNERSHIP] y -> Borrowed(Immutable) at ...
+# 分析并生成可视化
+cargo run --release -- analyze test.rs --dot test.dot --svg test.svg
 ```
 
----
+### 示例 3：查看分析摘要
 
-## API 使用
-
-RustVisualizer 也可以作为库在代码中使用。
-
-### 添加依赖
-
-```toml
-[dependencies]
-rust_visualizer = { path = "../rust_visualizer" }
+```bash
+cargo run --release -- analyze examples/test_borrow.rs
 ```
 
-### 基本使用示例
+输出示例：
+```
+=== Variable Analysis Summary ===
+Total variables: 5
+Used variables: 5
+Unused variables: 0
 
-```rust
-use rust_visualizer::parser::ast_visitor::AstVisitor;
-use rust_visualizer::analysis::{OwnershipAnalyzer, BorrowAnalyzer, LifetimeAnalyzer};
-use rust_visualizer::graph::dot_export::{DotExporter, DotConfig};
-use rust_visualizer::graph::svg_renderer::SvgRenderer;
-use rust_visualizer::graph::variable_graph::GraphBuilder;
-use std::path::Path;
-
-// 1. 读取并解析源代码
-let source_code = std::fs::read_to_string("examples/demo.rs").unwrap();
-let syntax = syn::parse_file(&source_code).unwrap();
-
-// 2. 提取分析事件
-let visitor = AstVisitor::new();
-let events = visitor.visit_file(&syntax);
-
-// 3. 执行各种分析
-let mut ownership_analyzer = OwnershipAnalyzer::new();
-let ownership_results = ownership_analyzer.analyze(&events);
-
-let mut borrow_analyzer = BorrowAnalyzer::new();
-let borrow_results = borrow_analyzer.analyze(&events);
-
-let mut lifetime_analyzer = LifetimeAnalyzer::new();
-let lifetime_results = lifetime_analyzer.analyze(&events);
-
-// 4. 构建变量关系图
-let graph_builder = GraphBuilder::build_from_events(&events);
-let graph = graph_builder.get_graph();
-
-// 5. 生成可视化输出
-let exporter = DotExporter::new();
-let dot_export = exporter.export(graph, ownership_results);
-println!("{}", dot_export.content);
-
-// 6. 生成 SVG
-let renderer = SvgRenderer::new();
-let svg = renderer.render_simple(graph, ownership_results);
-renderer.export_to_file(&svg, Path::new("output.svg")).unwrap();
+DOT file exported to: examples/test_borrow.dot
+  Nodes: 5, Edges: 0
+  Use 'dot -Tpng examples/test_borrow.dot -o output.png' to generate PNG
+SVG file exported to: examples/test_borrow.svg
+  Open this file in a web browser to view
 ```
 
-### 配置选项
+## 输出文件说明
 
-#### DotConfig 配置
+### DOT 文件
 
-```rust
-use rust_visualizer::graph::dot_export::{DotExporter, DotConfig};
+DOT 文件是标准的 Graphviz 格式文件，可以用于：
 
-let config = DotConfig {
-    title: "My Analysis".to_string(),
-    show_ownership: true,      // 显示所有权状态
-    show_borrows: true,       // 显示借用关系
-    show_scopes: true,        // 显示作用域分组
-    horizontal: false,        // false=垂直, true=水平
-    show_unused: false,       // 不显示未使用变量
-};
+1. **在线查看**：复制内容到 [Graphviz Online](https://dreampuf.github.io/GraphvizOnline/)
+2. **生成图像**：使用 Graphviz 命令行工具
 
-let exporter = DotExporter::with_config(config);
+```bash
+# 使用 Graphviz 生成 PNG
+dot -Tpng output.dot -o output.png
+
+# 使用 Graphviz 生成 SVG
+dot -Tsvg output.dot -o output.svg
 ```
 
-#### SvgConfig 配置
+### SVG 文件
 
-```rust
-use rust_visualizer::graph::svg_renderer::{SvgRenderer, SvgConfig};
+SVG 文件可以直接在浏览器中打开查看，无需额外工具。
 
-let config = SvgConfig {
-    width: 1200,                    // 宽度（像素）
-    height: 800,                    // 高度（像素）
-    background: Some("#FFFFFF".to_string()),  // 背景色
-    font_family: "Arial, sans-serif".to_string(),
-    font_size: 12,
-};
+## 可视化效果说明
 
-let renderer = SvgRenderer::with_config(config);
-```
+### 颜色编码
 
----
+| 状态 | 颜色 | 说明 |
+|------|------|------|
+| Owned | 🟢 绿色 | 变量拥有所有权 |
+| Moved | 🟠 橙色 | 变量已移动 |
+| Borrowed(Immutable) | 🔵 蓝色 | 变量被不可变借用 |
+| Borrowed(Mutable) | 🔴 红色 | 变量被可变借用 |
+| Dropped | ⚪ 灰色 | 变量已销毁 |
+| Unused | ⚪ 浅灰色 | 变量未被使用 |
 
-## 示例代码
+### 作用域分组
 
-### 示例 1: 基本所有权
+变量会按作用域层级分组显示，每个作用域显示为一个带标题的浅蓝色框：
 
-`examples/ownership_basic.rs`:
+- Scope 2：顶层作用域
+- Scope 3：函数内部作用域
+- Scope 4：块作用域（如 if、loop、match 等）
 
-```rust
-fn main() {
-    let x = String::from("hello");  // x 获得所有权
-    let y = x;                      // 所有权转移到 y
-    
-    println!("{}", y);
-}
-```
+### 图例
 
-**分析结果**:
-- `x` 在第2行被定义（Owned）
-- 第3行 `x` 的所有权转移到 `y`（Moved）
-- `x` 在转移后不可使用
+SVG 文件包含图例，解释各种颜色的含义：
 
-### 示例 2: 借用分析
+- Legend：图例区域
+- Statistics：统计信息（节点数、边数）
 
-`examples/borrow_analysis.rs`:
+## 支持的分析功能
 
-```rust
-fn main() {
-    let mut data = vec![1, 2, 3];
-    
-    // 不可变借用
-    let print_data = || {
-        println!("{:?}", data);
-    };
-    print_data();
-    
-    // 可变借用
-    data.push(4);
-    
-    println!("{:?}", data);
-}
-```
+### 变量识别
+- 识别 let 绑定定义的变量
+- 识别函数参数
+- 识别结构体字段
 
-**分析结果**:
-- 不可变借用：`&data`
-- 可变借用：`&mut data`（隐式）
-- 借用在作用域结束时释放
+### 所有权状态追踪
+- Owned：变量刚定义时的状态
+- Borrowed：变量被借用（& 或 &mut）
+- Moved：变量所有权被移动
+- Dropped：变量离开作用域
 
-### 示例 3: 生命周期
+### 作用域分析
+- 自动识别作用域层级
+- 区分函数、块、循环等作用域
 
-`examples/lifetime_demo.rs`:
+## 示例文件
 
-```rust
-fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
-    if x.len() > y.len() {
-        x
-    } else {
-        y
-    }
-}
+项目包含以下示例文件：
 
-fn main() {
-    let s1 = String::from("long");
-    let s2 = String::from("short");
-    
-    let result = longest(&s1, &s2);
-    println!("{}", result);
-}
-```
-
-**分析结果**:
-- 识别生命周期参数 `'a`
-- 追踪引用的有效性
-- 检测潜在的悬垂引用
-
----
+| 文件 | 描述 |
+|------|------|
+| examples/demo.rs | 演示基本功能 |
+| examples/test_borrow.rs | 测试借用场景 |
+| examples/test_move.rs | 测试移动语义 |
+| examples/test_scope.rs | 测试作用域分组 |
+| examples/test_ownership.rs | 测试所有权变化 |
+| examples/test_unused.rs | 测试未使用变量 |
+| examples/test_mutable.rs | 测试可变变量 |
 
 ## 常见问题
 
-### Q: 为什么我的 DOT 文件打开是乱码？
+### Q: 为什么所有节点都是灰色的？
 
-A: 确保使用 UTF-8 编码保存文件。Windows 用户可以用 VS Code 等编辑器转换编码。
+A: 这通常是因为变量在作用域退出时被标记为 Dropped。工具会自动忽略 Dropped 状态，取最后一个非 Dropped 状态的颜色。如果问题仍然存在，请检查代码逻辑。
 
-### Q: SVG 输出为什么没有显示节点？
+### Q: DOT 和 SVG 显示不一致？
 
-A: 简单 SVG 模式（不使用 Graphviz）仅生成包含图例和统计信息的基础框架。需要完整可视化请安装 [Graphviz](https://www.graphviz.org/download/) 并使用 `--dot` 参数导出。
+A: 请确保使用最新版本。如果问题仍然存在，请报告 Issue。
 
-### Q: 如何安装 Graphviz？
+### Q: 如何在没有 Graphviz 的情况下使用？
 
-**Windows**:
-```powershell
-winget install graphviz
-```
+A: SVG 渲染器是内置的，无需安装 Graphviz。DOT 文件可以在 [Graphviz Online](https://dreampuf.github.io/GraphvizOnline/) 中查看。
 
-**macOS**:
-```bash
-brew install graphviz
-```
+## 技术支持
 
-**Linux (Ubuntu/Debian)**:
-```bash
-sudo apt-get install graphviz
-```
+如果遇到问题或有建议，请提交 Issue 到项目仓库。
 
-安装后，使用以下命令生成 PNG：
-```bash
-dot -Tpng output.dot -o output.png
-```
+## 更新日志
 
-### Q: 支持哪些 Rust 语法？
+### v2.0
+- 新增 DOT 格式导出
+- 新增 SVG 渲染支持
+- 添加作用域分组显示
+- 修复颜色显示问题
 
-当前版本支持：
-- ✅ 变量定义和赋值
-- ✅ 函数定义和调用
-- ✅ 所有权转移（移动语义）
-- ✅ 不可变借用和可变借用
-- ✅ 作用域和生命周期
-- ✅ 基本表达式和控制流
-
-计划支持：
-- 🔄 结构体和方法
-- 🔄 泛型和 trait
-- 🔄 闭包
-- 🔄 并发原语（Arc, Mutex 等）
-
-### Q: 工具会修改源代码吗？
-
-不会。RustVisualizer 是纯静态分析工具，只读取源代码，不会进行任何修改。
-
----
-
-## 相关资源
-
-- [Rust 所有权文档](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html)
-- [Graphviz 文档](https://graphviz.org/documentation/)
-- [SVG 教程](https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial)
-
----
-
-## 反馈与支持
-
-如遇到问题或有功能建议，请提交 [GitHub Issue](https://github.com/Ripple-Chance/rust_visualizer/issues)。
+### v1.0
+- 基础变量分析功能
+- 所有权追踪
+- 命令行界面

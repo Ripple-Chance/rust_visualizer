@@ -9,6 +9,8 @@ mod parser;
 
 use error::{Result, VisualizerError};
 use graph::variable_graph::GraphBuilder;
+use graph::dot_export::{DotExporter, DotConfig};
+use graph::svg_renderer::{SvgRenderer, SvgConfig};
 use parser::{read_and_parse_file, AstVisitor};
 use analysis::{OwnershipAnalyzer, BorrowAnalyzer, LifetimeAnalyzer};
 
@@ -44,6 +46,15 @@ enum Commands {
         
         #[arg(long, help = "Show lifetime analysis")]
         lifetime: bool,
+        
+        #[arg(long, help = "Export to DOT format file")]
+        dot: Option<String>,
+        
+        #[arg(long, help = "Export to SVG format file")]
+        svg: Option<String>,
+        
+        #[arg(long, help = "Use horizontal layout")]
+        horizontal: bool,
     },
 }
 
@@ -51,14 +62,15 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Analyze { file, list_vars, unused, events, ownership, borrow, lifetime } => {
-            analyze_file(&file, list_vars, unused, events, ownership, borrow, lifetime)
+        Commands::Analyze { file, list_vars, unused, events, ownership, borrow, lifetime, dot, svg, horizontal } => {
+            analyze_file(&file, list_vars, unused, events, ownership, borrow, lifetime, dot, svg, horizontal)
         }
     }
 }
 
 fn analyze_file(file: &str, list_vars: bool, unused: bool, show_events: bool, 
-               ownership: bool, borrow: bool, lifetime: bool) -> Result<()> {
+               ownership: bool, borrow: bool, lifetime: bool,
+               dot_file: Option<String>, svg_file: Option<String>, horizontal: bool) -> Result<()> {
     let path = Path::new(file);
     
     if !path.exists() {
@@ -141,6 +153,57 @@ fn analyze_file(file: &str, list_vars: bool, unused: bool, show_events: bool,
             println!("  - {}: {} references", name, references);
         }
         println!();
+    }
+
+    // Export to DOT format
+    if let Some(dot_path) = dot_file {
+        let mut ownership_analyzer = OwnershipAnalyzer::new();
+        let ownership_results = ownership_analyzer.analyze(&visitor.events);
+        
+        let config = DotConfig {
+            title: "Rust Ownership Graph".to_string(),
+            show_ownership: true,
+            show_borrows: true,
+            show_scopes: true,
+            horizontal,
+            show_unused: true,
+        };
+        
+        let exporter = DotExporter::with_config(config);
+        let graph = graph_builder.get_graph();
+        let dot_export = exporter.export(&graph, ownership_results, Some(file));
+        
+        std::fs::write(&dot_path, &dot_export.content)
+            .map_err(|e| VisualizerError::InvalidInput(format!("Failed to write DOT file: {}", e)))?;
+        
+        println!("✓ DOT file exported to: {}", dot_path);
+        println!("  Nodes: {}, Edges: {}", dot_export.node_count, dot_export.edge_count);
+        println!("  Use 'dot -Tpng {} -o output.png' to generate PNG", dot_path);
+    }
+
+    // Export to SVG format
+    if let Some(svg_path) = svg_file {
+        let mut ownership_analyzer = OwnershipAnalyzer::new();
+        let ownership_results = ownership_analyzer.analyze(&visitor.events);
+        
+        let config = SvgConfig {
+            width: 1200,
+            height: 800,
+            background: Some("#FFFFFF".to_string()),
+            font_family: "Arial, sans-serif".to_string(),
+            font_size: 12,
+            title: None,
+        };
+        
+        let renderer = SvgRenderer::with_config(config);
+        let graph = graph_builder.get_graph();
+        let svg = renderer.render_simple(&graph, ownership_results, Some(file));
+        
+        renderer.export_to_file(&svg, Path::new(&svg_path))
+            .map_err(|e| VisualizerError::InvalidInput(e))?;
+        
+        println!("✓ SVG file exported to: {}", svg_path);
+        println!("  Open this file in a web browser to view");
     }
 
     Ok(())

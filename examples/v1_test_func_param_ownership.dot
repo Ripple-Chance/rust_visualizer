@@ -1,0 +1,28 @@
+digraph v1_test_func_param_ownership_rs {
+  // Graph attributes
+  label="v1_test_func_param_ownership.rs";
+  labelloc=t;
+  fontsize=16;
+  fontname="Arial";
+  rankdir=TB;
+  compound=true;
+  splines=ortho;
+  nodesep=0.5;
+  ranksep=0.8;
+
+  // Scope subgraphs with nodes
+  subgraph cluster_scope_2 {
+    label="Scope 2";
+    style="filled"; fillcolor="#E3F2FD"; color="#1976D2";
+    "s1_2" [label="s1", shape=box, fillcolor="#4CAF50", style="filled"];
+    "s2_2" [label="s2", shape=box, fillcolor="#2196F3", style="filled"];
+  }
+  subgraph cluster_scope_1 {
+    label="Scope 1";
+    style="filled"; fillcolor="#E3F2FD"; color="#1976D2";
+    "s_1" [label="s", shape=box, fillcolor="#4CAF50", style="filled"];
+  }
+
+  // Variable relationships
+
+}

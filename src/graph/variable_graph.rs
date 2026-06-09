@@ -27,6 +27,10 @@ impl GraphBuilder {
         }
     }
 
+    pub fn get_graph(&self) -> VarGraph {
+        self.graph.clone()
+    }
+
     pub fn build_from_events(events: &[AnalysisEvent]) -> Self {
         let mut builder = Self::new();
         

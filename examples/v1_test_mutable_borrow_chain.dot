@@ -1,0 +1,24 @@
+digraph v1_test_mutable_borrow_chain_rs {
+  // Graph attributes
+  label="v1_test_mutable_borrow_chain.rs";
+  labelloc=t;
+  fontsize=16;
+  fontname="Arial";
+  rankdir=TB;
+  compound=true;
+  splines=ortho;
+  nodesep=0.5;
+  ranksep=0.8;
+
+  // Scope subgraphs with nodes
+  subgraph cluster_scope_2 {
+    label="Scope 2";
+    style="filled"; fillcolor="#E3F2FD"; color="#1976D2";
+    "x_2" [label="x", shape=box, fillcolor="#F44336", style="filled", fontcolor="#D32F2F"];
+    "r1_2" [label="r1", shape=box, fillcolor="#4CAF50", style="filled"];
+    "r2_2" [label="r2", shape=box, fillcolor="#4CAF50", style="filled"];
+  }
+
+  // Variable relationships
+
+}

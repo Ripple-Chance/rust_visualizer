@@ -1,0 +1,22 @@
+digraph test_simple_rs {
+  // Graph attributes
+  label="test_simple.rs";
+  labelloc=t;
+  fontsize=16;
+  fontname="Arial";
+  rankdir=TB;
+  compound=true;
+  splines=ortho;
+  nodesep=0.5;
+  ranksep=0.8;
+
+  // Scope subgraphs with nodes
+  subgraph cluster_scope_2 {
+    label="Scope 2";
+    style="filled"; fillcolor="#E3F2FD"; color="#1976D2";
+    "x_2" [label="x", shape=box, fillcolor="#4CAF50", style="filled"];
+  }
+
+  // Variable relationships
+
+}

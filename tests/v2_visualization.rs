@@ -30,7 +30,7 @@ fn test_dot_export_with_variables() {
     
     let exporter = DotExporter::new();
     let results: Vec<AnalysisResult> = Vec::new();
-    let export = exporter.export(&graph, &results);
+    let export = exporter.export(&graph, &results, None);
     
     // Verify DOT content
     assert!(export.content.contains("digraph"));
@@ -54,7 +54,7 @@ fn test_dot_export_config() {
     let exporter = DotExporter::with_config(config);
     let graph: VarGraph = DiGraph::new();
     let results: Vec<AnalysisResult> = Vec::new();
-    let export = exporter.export(&graph, &results);
+    let export = exporter.export(&graph, &results, None);
     
     assert!(export.content.contains("Test_Graph"));
     assert!(export.content.contains("rankdir=LR"));
@@ -86,7 +86,7 @@ fn test_dot_style_customization() {
     });
     
     let results: Vec<AnalysisResult> = Vec::new();
-    let export = exporter.export(&graph, &results);
+    let export = exporter.export(&graph, &results, None);
     
     assert!(export.content.contains("shape=circle"));
 }
@@ -97,7 +97,7 @@ fn test_svg_renderer_simple() {
     let graph: VarGraph = DiGraph::new();
     let results: Vec<AnalysisResult> = Vec::new();
     
-    let svg = renderer.render_simple(&graph, &results);
+    let svg = renderer.render_simple(&graph, &results, None);
     
     assert!(svg.content.contains("<svg"));
     assert!(svg.content.contains("</svg>"));
@@ -140,7 +140,7 @@ fn test_scope_grouping() {
     
     let exporter = DotExporter::with_config(config);
     let results: Vec<AnalysisResult> = Vec::new();
-    let export = exporter.export(&graph, &results);
+    let export = exporter.export(&graph, &results, None);
     
     assert!(export.content.contains("cluster_scope_0"));
     assert!(export.content.contains("cluster_scope_1"));
@@ -171,7 +171,7 @@ fn test_unused_variable_filtering() {
     
     let exporter = DotExporter::with_config(config);
     let results: Vec<AnalysisResult> = Vec::new();
-    let export = exporter.export(&graph, &results);
+    let export = exporter.export(&graph, &results, None);
     
     // Check that the node is not in the DOT output
     assert!(!export.content.contains("unused_0"));
@@ -199,7 +199,7 @@ fn test_ownership_status_in_export() {
     ];
     
     let exporter = DotExporter::new();
-    let export = exporter.export(&graph, &results);
+    let export = exporter.export(&graph, &results, None);
     
     // Graph should be generated with ownership info
     assert!(export.content.contains("x_0"));
@@ -215,7 +215,7 @@ fn test_horizontal_layout() {
     let exporter = DotExporter::with_config(config);
     let graph: VarGraph = DiGraph::new();
     let results: Vec<AnalysisResult> = Vec::new();
-    let export = exporter.export(&graph, &results);
+    let export = exporter.export(&graph, &results, None);
     
     assert!(export.content.contains("rankdir=LR"));
 }

@@ -1,0 +1,35 @@
+digraph test_scope_rs {
+  // Graph attributes
+  label="test_scope.rs";
+  labelloc=t;
+  fontsize=16;
+  fontname="Arial";
+  rankdir=TB;
+  compound=true;
+  splines=ortho;
+  nodesep=0.5;
+  ranksep=0.8;
+
+  // Scope subgraphs with nodes
+  subgraph cluster_scope_3 {
+    label="Scope 3";
+    style="filled"; fillcolor="#E3F2FD"; color="#1976D2";
+    "b_3" [label="b", shape=box, fillcolor="#4CAF50", style="filled"];
+    "c_3" [label="c", shape=box, fillcolor="#4CAF50", style="filled"];
+  }
+  subgraph cluster_scope_2 {
+    label="Scope 2";
+    style="filled"; fillcolor="#E3F2FD"; color="#1976D2";
+    "a_2" [label="a", shape=box, fillcolor="#4CAF50", style="filled"];
+    "f_2" [label="f", shape=box, style="filled", fillcolor="#EEEEEE", fontcolor="#9E9E9E"];
+  }
+  subgraph cluster_scope_4 {
+    label="Scope 4";
+    style="filled"; fillcolor="#E3F2FD"; color="#1976D2";
+    "d_4" [label="d", shape=box, fillcolor="#4CAF50", style="filled"];
+    "e_4" [label="e", shape=box, style="filled", fillcolor="#EEEEEE", fontcolor="#9E9E9E"];
+  }
+
+  // Variable relationships
+
+}

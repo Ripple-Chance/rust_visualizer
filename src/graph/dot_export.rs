@@ -15,6 +15,7 @@ pub struct DotConfig {
     /// Show variable ownership status
     pub show_ownership: bool,
     /// Show borrow relationships
+    #[allow(dead_code)]
     pub show_borrows: bool,
     /// Show scope levels
     pub show_scopes: bool,
@@ -45,6 +46,7 @@ pub struct DotStyle {
     /// Ownership status colors
     pub ownership_colors: HashMap<OwnershipStatus, String>,
     /// Borrow kind colors
+    #[allow(dead_code)]
     pub borrow_colors: HashMap<BorrowKind, String>,
     /// Unused variable style
     pub unused_style: String,
@@ -58,6 +60,7 @@ impl Default for DotStyle {
         ownership_colors.insert(OwnershipStatus::Owned, "#4CAF50".to_string()); // Green
         ownership_colors.insert(OwnershipStatus::Moved, "#FF9800".to_string()); // Orange
         ownership_colors.insert(OwnershipStatus::Borrowed(BorrowKind::Immutable), "#2196F3".to_string()); // Blue
+        ownership_colors.insert(OwnershipStatus::Borrowed(BorrowKind::Mutable), "#F44336".to_string()); // Red
         ownership_colors.insert(OwnershipStatus::Dropped, "#9E9E9E".to_string()); // Gray
         
         let mut borrow_colors = HashMap::new();
@@ -68,8 +71,8 @@ impl Default for DotStyle {
             node_shape: "box".to_string(),
             ownership_colors,
             borrow_colors,
-            unused_style: "style=filled,fillcolor=#EEEEEE,fontcolor=#9E9E9E".to_string(),
-            scope_style: "style=filled,fillcolor=#E3F2FD,color=#1976D2".to_string(),
+            unused_style: "style=\"filled\", fillcolor=\"#EEEEEE\", fontcolor=\"#9E9E9E\"".to_string(),
+            scope_style: "style=\"filled\"; fillcolor=\"#E3F2FD\"; color=\"#1976D2\"".to_string(),
         }
     }
 }
@@ -109,19 +112,33 @@ impl DotExporter {
     }
     
     /// Create a new DOT exporter with custom style
+    #[allow(dead_code)]
     pub fn with_style(config: DotConfig, style: DotStyle) -> Self {
         Self { config, style }
     }
     
     /// Export a variable graph to DOT format
-    pub fn export(&self, graph: &VarGraph, analysis_results: &[AnalysisResult]) -> DotExport {
+    /// If filename is provided, it will be used as the title (unless title is explicitly set)
+    pub fn export(&self, graph: &VarGraph, analysis_results: &[AnalysisResult], filename: Option<&str>) -> DotExport {
         let mut content = String::new();
         let mut edge_count = 0;
         
+        // Determine title
+        let title = if self.config.title != "Rust Ownership Graph" {
+            self.config.title.clone()
+        } else if let Some(f) = filename {
+            // Extract just the filename without path
+            std::path::Path::new(f).file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| f.to_string())
+        } else {
+            self.config.title.clone()
+        };
+        
         // Graph header
-        content.push_str(&format!("digraph {} {{\n", self.sanitize_id(&self.config.title)));
+        content.push_str(&format!("digraph {} {{\n", self.sanitize_id(&title)));
         content.push_str("  // Graph attributes\n");
-        content.push_str(&format!("  label=\"{}\";\n", self.config.title));
+        content.push_str(&format!("  label=\"{}\";\n", title));
         content.push_str("  labelloc=t;\n");
         content.push_str("  fontsize=16;\n");
         content.push_str("  fontname=\"Arial\";\n");
@@ -138,70 +155,89 @@ impl DotExporter {
         content.push_str("  nodesep=0.5;\n");
         content.push_str("  ranksep=0.8;\n\n");
         
-        // Scope grouping
+        // Scope grouping - define nodes inside clusters
         if self.config.show_scopes {
-            content.push_str("  // Scope subgraphs\n");
+            content.push_str("  // Scope subgraphs with nodes\n");
             let scopes = self.group_by_scope(graph);
             for (scope_level, nodes) in scopes {
                 content.push_str(&format!("  subgraph cluster_scope_{} {{\n", scope_level));
                 content.push_str(&format!("    label=\"Scope {}\";\n", scope_level));
                 content.push_str(&format!("    {};\n", self.style.scope_style));
                 
+                // Define nodes with full attributes inside the cluster
                 for node_idx in nodes {
                     if let Some(node) = graph.node_weight(node_idx) {
                         // Skip unused variables if not configured to show them
                         if !self.config.show_unused && !node.used && node.defined {
                             continue;
                         }
-                        content.push_str(&format!("    \"{}\";\n", self.node_id(node)));
+                        
+                        content.push_str(&format!("    \"{}\" [", self.node_id(node)));
+                        
+                        // Node attributes
+                        let mut attrs = Vec::new();
+                        attrs.push(format!("label=\"{}\"", node.name));
+                        attrs.push(format!("shape={}", self.style.node_shape));
+                        
+                        // For unused variables, use unused_style instead of ownership colors
+                        if node.defined && !node.used {
+                            attrs.push(self.style.unused_style.clone());
+                        } else if self.config.show_ownership {
+                            let status = self.get_ownership_status(node, analysis_results);
+                            if let Some(color) = self.style.ownership_colors.get(&status) {
+                                attrs.push(format!("fillcolor=\"{}\"", color));
+                                attrs.push("style=\"filled\"".to_string());
+                            }
+                        }
+                        
+                        if node.is_mutable {
+                            attrs.push("fontcolor=\"#D32F2F\"".to_string());
+                        }
+                        
+                        content.push_str(&attrs.join(", "));
+                        content.push_str("];\n");
                     }
                 }
                 
                 content.push_str("  }\n");
             }
             content.push_str("\n");
-        }
-        
-        // Generate nodes
-        content.push_str("  // Variable nodes\n");
-        for node_idx in graph.node_indices() {
-            if let Some(node) = graph.node_weight(node_idx) {
-                // Skip unused variables if not configured to show them
-                if !self.config.show_unused && !node.used && node.defined {
-                    continue;
-                }
-                
-                content.push_str(&format!("  \"{}\" [", self.node_id(node)));
-                
-                // Node attributes
-                let mut attrs = Vec::new();
-                attrs.push(format!("label=\"{}\"", node.name));
-                attrs.push(format!("shape={}", self.style.node_shape));
-                
-                if self.config.show_ownership {
-                    // Determine ownership status from analysis results
-                    let status = self.get_ownership_status(node, analysis_results);
-                    if let Some(color) = self.style.ownership_colors.get(&status) {
-                        attrs.push(format!("fillcolor=\"{}\"", color));
-                        attrs.push("style=filled".to_string());
+        } else {
+            // Generate nodes outside clusters (no scopes)
+            content.push_str("  // Variable nodes\n");
+            for node_idx in graph.node_indices() {
+                if let Some(node) = graph.node_weight(node_idx) {
+                    if !self.config.show_unused && !node.used && node.defined {
+                        continue;
                     }
+                    
+                    content.push_str(&format!("  \"{}\" [", self.node_id(node)));
+                    
+                    let mut attrs = Vec::new();
+                    attrs.push(format!("label=\"{}\"", node.name));
+                    attrs.push(format!("shape={}", self.style.node_shape));
+                    
+                    // For unused variables, use unused_style instead of ownership colors
+                    if node.defined && !node.used {
+                        attrs.push(self.style.unused_style.clone());
+                    } else if self.config.show_ownership {
+                        let status = self.get_ownership_status(node, analysis_results);
+                        if let Some(color) = self.style.ownership_colors.get(&status) {
+                            attrs.push(format!("fillcolor=\"{}\"", color));
+                            attrs.push("style=\"filled\"".to_string());
+                        }
+                    }
+                    
+                    if node.is_mutable {
+                        attrs.push("fontcolor=\"#FFFFFF\"".to_string());
+                    }
+                    
+                    content.push_str(&attrs.join(", "));
+                    content.push_str("];\n");
                 }
-                
-                // Mark unused variables
-                if node.defined && !node.used {
-                    attrs.push(self.style.unused_style.clone());
-                }
-                
-                // Mutable indicator
-                if node.is_mutable {
-                    attrs.push("fontcolor=#D32F2F".to_string());
-                }
-                
-                content.push_str(&attrs.join(", "));
-                content.push_str("];\n");
             }
+            content.push_str("\n");
         }
-        content.push_str("\n");
         
         // Generate edges
         content.push_str("  // Variable relationships\n");
@@ -234,14 +270,24 @@ impl DotExporter {
     
     /// Get ownership status for a node based on analysis results
     fn get_ownership_status(&self, node: &VarNode, results: &[AnalysisResult]) -> OwnershipStatus {
+        // Find the last non-Dropped status for the variable
+        // (Dropped is the final state of all variables when scope exits, so we ignore it)
+        let mut last_non_dropped_status: Option<OwnershipStatus> = None;
         for result in results {
             if let AnalysisResult::OwnershipChange { name, new_status, .. } = result {
                 if &node.name == name {
-                    return new_status.clone();
+                    match new_status {
+                        OwnershipStatus::Dropped => {
+                            // Don't update - keep the previous non-Dropped status
+                        }
+                        _ => {
+                            last_non_dropped_status = Some(new_status.clone());
+                        }
+                    }
                 }
             }
         }
-        OwnershipStatus::Owned
+        last_non_dropped_status.unwrap_or(OwnershipStatus::Owned)
     }
     
     /// Group nodes by scope level
@@ -299,7 +345,7 @@ mod tests {
         let exporter = DotExporter::new();
         let results: Vec<AnalysisResult> = Vec::new();
         
-        let export = exporter.export(&graph, &results);
+        let export = exporter.export(&graph, &results, None);
         
         assert!(export.content.contains("digraph"));
         assert_eq!(export.node_count, 0);
@@ -322,7 +368,7 @@ mod tests {
         let style = DotStyle::default();
         
         assert_eq!(style.node_shape, "box");
-        assert_eq!(style.ownership_colors.len(), 4);
+        assert_eq!(style.ownership_colors.len(), 5);
         assert_eq!(style.borrow_colors.len(), 2);
     }
     

@@ -108,7 +108,7 @@ impl OwnershipAnalyzer {
         }
     }
 
-    fn handle_borrow_created(&mut self, name: &str, kind: &BorrowKind, _span: Span) {
+    fn handle_borrow_created(&mut self, name: &str, kind: &BorrowKind, span: Span) {
         let scopes_len = self.scopes.len();
         for level in (0..scopes_len).rev() {
             if let Some(scope) = self.scopes.get_mut(level) {
@@ -116,6 +116,12 @@ impl OwnershipAnalyzer {
                     match record.status {
                         OwnershipStatus::Owned => {
                             record.status = OwnershipStatus::Borrowed(kind.clone());
+                            // Add the ownership change to results
+                            self.results.push(AnalysisResult::OwnershipChange {
+                                name: name.to_string(),
+                                new_status: OwnershipStatus::Borrowed(kind.clone()),
+                                span,
+                            });
                         }
                         OwnershipStatus::Borrowed(ref existing_kind) => {
                             if *kind == BorrowKind::Mutable && *existing_kind != BorrowKind::Mutable {
