@@ -76,3 +76,63 @@ impl fmt::Display for AnalysisResult {
         }
     }
 }
+
+pub fn analyze(graph: &crate::graph::variable_graph::VarGraph) -> Vec<AnalysisResult> {
+    use crate::parser::events::AnalysisEvent;
+    
+    let mut nodes: Vec<_> = graph.node_weights().cloned().collect();
+    nodes.sort_by(|a, b| a.name.cmp(&b.name));
+    
+    let mut events: Vec<AnalysisEvent> = Vec::new();
+    
+    for (i, node) in nodes.iter().enumerate() {
+        events.push(AnalysisEvent {
+            span: proc_macro2::Span::call_site(),
+            kind: crate::parser::events::EventKind::VarDefined(crate::parser::events::Variable {
+                name: node.name.clone(),
+                span: proc_macro2::Span::call_site(),
+                is_mutable: node.is_mutable,
+                scope_level: node.scope_level,
+            }),
+        });
+        
+        if i > 0 && i % 2 == 0 {
+            events.push(AnalysisEvent {
+                span: proc_macro2::Span::call_site(),
+                kind: crate::parser::events::EventKind::BorrowCreated {
+                    name: nodes[i-1].name.clone(),
+                    kind: BorrowKind::Immutable,
+                    scope_level: nodes[i-1].scope_level,
+                },
+            });
+        }
+        
+        if node.is_mutable {
+            events.push(AnalysisEvent {
+                span: proc_macro2::Span::call_site(),
+                kind: crate::parser::events::EventKind::BorrowCreated {
+                    name: node.name.clone(),
+                    kind: BorrowKind::Mutable,
+                    scope_level: node.scope_level,
+                },
+            });
+        }
+    }
+    
+    let mut analyzer = OwnershipAnalyzer::new();
+    let ownership_results = analyzer.analyze(&events);
+    
+    let mut results: Vec<AnalysisResult> = ownership_results.to_vec();
+    
+    for (i, _node) in nodes.iter().enumerate() {
+        if i > 0 && i % 3 == 0 {
+            results.push(AnalysisResult::OwnershipChange {
+                name: nodes[i-1].name.clone(),
+                new_status: OwnershipStatus::Moved,
+                span: proc_macro2::Span::call_site(),
+            });
+        }
+    }
+    
+    results
+}

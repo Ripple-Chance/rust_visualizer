@@ -1,201 +1,209 @@
 # Rust Visualizer 使用说明
 
-**版本**: 2.0  
-**更新日期**: 2026-06-09  
+**版本**: 3.0  
+**更新日期**: 2026-06-10  
 
 ## 概述
 
-Rust Visualizer 是一个用于可视化 Rust 代码变量所有权关系的工具。它可以分析 Rust 源代码，追踪变量的所有权状态变化，并生成可视化输出。
-
-## 快速开始
-
-### 安装
-
-```bash
-# 克隆仓库
-git clone https://github.com/your-repo/rust_visualizer.git
-cd rust_visualizer
-
-# 构建项目
-cargo build --release
-```
-
-### 基本用法
-
-```bash
-# 分析 Rust 文件
-cargo run --release -- analyze <input_file.rs>
-
-# 生成 DOT 文件
-cargo run --release -- analyze <input_file.rs> --dot output.dot
-
-# 生成 SVG 文件
-cargo run --release -- analyze <input_file.rs> --svg output.svg
-
-# 同时生成 DOT 和 SVG
-cargo run --release -- analyze <input_file.rs> --dot output.dot --svg output.svg
-```
+Rust Visualizer 是一个用于分析和可视化 Rust 代码变量所有权关系的命令行工具。
 
 ## 命令行参数
 
-```
-rust_visualizer analyze <input> [--dot <output>] [--svg <output>]
-
-位置参数：
-  input               要分析的 Rust 源文件路径
-
-选项：
-  --dot <output>      生成 DOT 格式文件
-  --svg <output>      生成 SVG 格式文件
-  --help              显示帮助信息
-```
-
-## 使用示例
-
-### 示例 1：分析示例文件
+### 基本命令
 
 ```bash
-# 分析 examples 目录下的测试文件
-cargo run --release -- analyze examples/test_scope.rs --dot examples/test_scope.dot --svg examples/test_scope.svg
+rust_visualizer <command> [options]
 ```
 
-### 示例 2：分析自定义文件
+### 命令列表
 
-```bash
-# 创建一个简单的 Rust 文件
-echo 'fn main() { let x = 42; let y = x; }' > test.rs
-
-# 分析并生成可视化
-cargo run --release -- analyze test.rs --dot test.dot --svg test.svg
-```
-
-### 示例 3：查看分析摘要
-
-```bash
-cargo run --release -- analyze examples/test_borrow.rs
-```
-
-输出示例：
-```
-=== Variable Analysis Summary ===
-Total variables: 5
-Used variables: 5
-Unused variables: 0
-
-DOT file exported to: examples/test_borrow.dot
-  Nodes: 5, Edges: 0
-  Use 'dot -Tpng examples/test_borrow.dot -o output.png' to generate PNG
-SVG file exported to: examples/test_borrow.svg
-  Open this file in a web browser to view
-```
-
-## 输出文件说明
-
-### DOT 文件
-
-DOT 文件是标准的 Graphviz 格式文件，可以用于：
-
-1. **在线查看**：复制内容到 [Graphviz Online](https://dreampuf.github.io/GraphvizOnline/)
-2. **生成图像**：使用 Graphviz 命令行工具
-
-```bash
-# 使用 Graphviz 生成 PNG
-dot -Tpng output.dot -o output.png
-
-# 使用 Graphviz 生成 SVG
-dot -Tsvg output.dot -o output.svg
-```
-
-### SVG 文件
-
-SVG 文件可以直接在浏览器中打开查看，无需额外工具。
-
-## 可视化效果说明
-
-### 颜色编码
-
-| 状态 | 颜色 | 说明 |
-|------|------|------|
-| Owned | 🟢 绿色 | 变量拥有所有权 |
-| Moved | 🟠 橙色 | 变量已移动 |
-| Borrowed(Immutable) | 🔵 蓝色 | 变量被不可变借用 |
-| Borrowed(Mutable) | 🔴 红色 | 变量被可变借用 |
-| Dropped | ⚪ 灰色 | 变量已销毁 |
-| Unused | ⚪ 浅灰色 | 变量未被使用 |
-
-### 作用域分组
-
-变量会按作用域层级分组显示，每个作用域显示为一个带标题的浅蓝色框：
-
-- Scope 2：顶层作用域
-- Scope 3：函数内部作用域
-- Scope 4：块作用域（如 if、loop、match 等）
-
-### 图例
-
-SVG 文件包含图例，解释各种颜色的含义：
-
-- Legend：图例区域
-- Statistics：统计信息（节点数、边数）
-
-## 支持的分析功能
-
-### 变量识别
-- 识别 let 绑定定义的变量
-- 识别函数参数
-- 识别结构体字段
-
-### 所有权状态追踪
-- Owned：变量刚定义时的状态
-- Borrowed：变量被借用（& 或 &mut）
-- Moved：变量所有权被移动
-- Dropped：变量离开作用域
-
-### 作用域分析
-- 自动识别作用域层级
-- 区分函数、块、循环等作用域
-
-## 示例文件
-
-项目包含以下示例文件：
-
-| 文件 | 描述 |
+| 命令 | 说明 |
 |------|------|
-| examples/demo.rs | 演示基本功能 |
-| examples/test_borrow.rs | 测试借用场景 |
-| examples/test_move.rs | 测试移动语义 |
-| examples/test_scope.rs | 测试作用域分组 |
-| examples/test_ownership.rs | 测试所有权变化 |
-| examples/test_unused.rs | 测试未使用变量 |
-| examples/test_mutable.rs | 测试可变变量 |
+| `analyze` | 分析单个 Rust 文件 |
+| `server` | 启动 Web 服务 |
+| `batch` | 批量分析目录中的 Rust 文件 |
+
+### analyze 命令
+
+```bash
+rust_visualizer analyze <input_file> [options]
+```
+
+**选项**:
+
+| 选项 | 说明 | 示例 |
+|------|------|------|
+| `--dot <path>` | 生成 DOT 格式文件 | `--dot output.dot` |
+| `--svg <path>` | 生成 SVG 图像 | `--svg output.svg` |
+| `--interactive <path>` | 生成交互式 SVG | `--interactive output.svg` |
+| `--animation <path>` | 生成时间线动画 SVG | `--animation output.svg` |
+| `--html <path>` | 生成 HTML 动画文件 | `--html output.html` |
+| `--json <path>` | 生成 JSON 格式输出 | `--json output.json` |
+
+**示例**:
+
+```bash
+# 生成基本 SVG
+rust_visualizer analyze src/main.rs --svg output.svg
+
+# 生成多种格式
+rust_visualizer analyze src/main.rs --dot output.dot --svg output.svg --json output.json
+
+# 生成交互式和动画 SVG
+rust_visualizer analyze src/main.rs --interactive interactive.svg --animation animation.svg
+```
+
+### server 命令
+
+```bash
+rust_visualizer server [--port <port>]
+```
+
+**选项**:
+
+| 选项 | 说明 | 默认值 |
+|------|------|--------|
+| `--port <port>` | 指定服务端口 | 8080 |
+
+**示例**:
+
+```bash
+# 使用默认端口
+rust_visualizer server
+
+# 指定端口
+rust_visualizer server --port 3000
+```
+
+启动后访问 http://localhost:8080 查看 Web 界面。
+
+### batch 命令
+
+```bash
+rust_visualizer batch --input-dir <dir> --output-dir <dir>
+```
+
+**选项**:
+
+| 选项 | 说明 |
+|------|------|
+| `--input-dir <dir>` | 输入目录（包含 Rust 文件） |
+| `--output-dir <dir>` | 输出目录（存放 SVG 文件） |
+
+**示例**:
+
+```bash
+rust_visualizer batch --input-dir src --output-dir output
+```
+
+## 输出格式说明
+
+### SVG 输出
+
+生成的 SVG 文件包含：
+- 作用域分组（浅蓝色背景框）
+- 变量节点（彩色矩形）
+- 变量状态标签
+- 图例说明
+
+### 交互式 SVG
+
+交互式 SVG 支持：
+- 鼠标悬停显示变量详细信息
+- 点击节点高亮显示
+- CSS 动画效果
+
+### HTML 动画
+
+HTML 动画文件包含：
+- 完整的网页界面
+- 前进/后退控制按钮
+- 进度条显示
+- 事件描述面板
+- 颜色图例说明
+- 美观的渐变背景设计
+
+**生成示例**:
+```bash
+rust_visualizer analyze input.rs --html animation.html
+```
+
+### 动画 SVG
+
+动画 SVG 支持：
+- 播放/暂停控制（已移除，简化为前进/后退）
+- 前进/后退按钮
+- 进度条显示
+- 事件描述
+
+### JSON 输出
+
+JSON 输出包含：
+- 文件路径
+- 变量总数
+- 使用/未使用变量数
+- 每个变量的详细信息（名称、类型、使用状态、作用域）
+
+## 颜色编码说明
+
+| 颜色 | 状态 | 含义 |
+|------|------|------|
+| #4CAF50 | Owned | 变量拥有所有权 |
+| #FF9800 | Moved | 所有权已移动 |
+| #2196F3 | Borrowed(Immutable) | 不可变借用 |
+| #F44336 | Borrowed(Mutable) | 可变借用 |
+| #EEEEEE | Unused | 未使用变量 |
+
+## API 使用说明
+
+### POST /api/analyze
+
+分析 Rust 代码。
+
+**请求**:
+```json
+{
+  "code": "fn main() { let x = 42; println!(\"{}\", x); }"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Analysis completed successfully",
+  "data": {
+    "total_variables": 1,
+    "used_variables": 1,
+    "unused_variables": 0,
+    "dot_output": "digraph {...}",
+    "svg_output": "<svg>...</svg>"
+  }
+}
+```
 
 ## 常见问题
 
-### Q: 为什么所有节点都是灰色的？
+### Q: 如何安装依赖？
 
-A: 这通常是因为变量在作用域退出时被标记为 Dropped。工具会自动忽略 Dropped 状态，取最后一个非 Dropped 状态的颜色。如果问题仍然存在，请检查代码逻辑。
+```bash
+cargo build --release
+```
 
-### Q: DOT 和 SVG 显示不一致？
+### Q: 如何使用 Graphviz 生成 PNG？
 
-A: 请确保使用最新版本。如果问题仍然存在，请报告 Issue。
+```bash
+dot -Tpng input.dot -o output.png
+```
 
-### Q: 如何在没有 Graphviz 的情况下使用？
+### Q: Web 服务无法启动？
 
-A: SVG 渲染器是内置的，无需安装 Graphviz。DOT 文件可以在 [Graphviz Online](https://dreampuf.github.io/GraphvizOnline/) 中查看。
+确保端口未被占用，或使用 `--port` 指定其他端口。
+
+### Q: 批量分析没有生成文件？
+
+确保输入目录包含 `.rs` 文件，输出目录有写入权限。
 
 ## 技术支持
 
-如果遇到问题或有建议，请提交 Issue 到项目仓库。
-
-## 更新日志
-
-### v2.0
-- 新增 DOT 格式导出
-- 新增 SVG 渲染支持
-- 添加作用域分组显示
-- 修复颜色显示问题
-
-### v1.0
-- 基础变量分析功能
-- 所有权追踪
-- 命令行界面
+如有问题，请提交 Issue 到 GitHub 仓库。

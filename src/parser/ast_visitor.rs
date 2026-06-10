@@ -1,7 +1,8 @@
 use proc_macro2::Span;
-use syn::{visit::Visit, spanned::Spanned, ItemFn, Pat, PatType, Stmt};
+use syn::{visit::Visit, spanned::Spanned, ItemFn, Pat, PatType, Stmt, parse_file};
 
 use crate::analysis::BorrowKind;
+use crate::graph::variable_graph::{VarGraph, GraphBuilder};
 use super::events::{AnalysisEvent, EventKind, Function, Variable};
 
 #[derive(Debug, Default)]
@@ -237,4 +238,13 @@ impl<'ast> Visit<'ast> for AstVisitor {
         });
         self.scope_level -= 1;
     }
+}
+
+pub fn parse_code(code: &str) -> Result<VarGraph, syn::Error> {
+    let file = parse_file(code)?;
+    let mut visitor = AstVisitor::new();
+    visitor.visit_file(&file);
+    
+    let builder = GraphBuilder::build_from_events(&visitor.events);
+    Ok(builder.get_graph())
 }

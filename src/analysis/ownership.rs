@@ -1,5 +1,6 @@
-use super::*;
+use super::{BorrowKind, OwnershipStatus, AnalysisResult};
 use crate::parser::events::{AnalysisEvent, EventKind};
+use proc_macro2::Span;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]

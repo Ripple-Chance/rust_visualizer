@@ -6,8 +6,8 @@ fn main() {
         let c = a + b;
         {
             let d = 3;
-            let e = c + d;
+            let _e = c + d;
         }
     }
-    let f = a * 2;
+    let _f = a * 2;
 }

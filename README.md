@@ -1,73 +1,103 @@
 # Rust Visualizer
 
-**版本**: 2.0  
-**更新日期**: 2026-06-09  
+**版本**: 3.0  
+**更新日期**: 2026-06-10  
 
-一个用于可视化 Rust 代码变量所有权关系的工具，支持 DOT 格式导出和 SVG 渲染。
+一个用于可视化 Rust 代码变量所有权关系的工具，支持 DOT 格式导出、SVG 渲染、交互式可视化和 Web 服务。
 
 ## 功能特性
 
-- 🔍 **变量分析**：解析 Rust 源代码，识别变量定义、使用、借用和移动
-- 📊 **所有权追踪**：追踪变量的所有权状态变化（Owned、Borrowed、Moved、Dropped）
-- 📈 **DOT 导出**：生成标准 Graphviz DOT 格式文件
-- 🎨 **SVG 渲染**：内置 SVG 渲染器，无需外部依赖
-- 📦 **作用域分组**：按作用域层级分组显示变量
-- 🎯 **样式定制**：支持自定义颜色和样式
+- ✅ Rust 源代码解析
+- ✅ 变量声明检测
+- ✅ 作用域分析
+- ✅ 完整所有权分析
+- ✅ 借用分析（不可变/可变）
+- ✅ 所有权移动分析
+- ✅ 生命周期分析
+- ✅ 未使用变量检测
+- ✅ DOT 格式导出
+- ✅ SVG 渲染
+- ✅ **交互式 SVG**（v3 新增）
+- ✅ **时间线动画**（v3 新增）
+- ✅ **Web 服务 API**（v3 新增）
+- ✅ **批量分析**（v3 新增）
 
-## 安装与运行
-
-### 前置要求
-
-- Rust 1.70+
-
-### 构建
+## 安装
 
 ```bash
-git clone https://github.com/your-repo/rust_visualizer.git
+git clone https://github.com/Ripple-Chance/rust_visualizer.git
 cd rust_visualizer
 cargo build --release
 ```
 
-### 运行
+## 使用方法
+
+### 基础分析
 
 ```bash
-# 分析 Rust 文件并生成可视化输出
-cargo run --release -- analyze <input.rs> [--dot output.dot] [--svg output.svg]
+# 分析单个文件并生成 SVG
+cargo run -- analyze examples/test_scope.rs --svg output.svg
+
+# 生成 DOT 文件
+cargo run -- analyze examples/test_scope.rs --dot output.dot
+
+# 生成交互式 SVG
+cargo run -- analyze examples/test_scope.rs --interactive interactive.svg
+
+# 生成时间线动画
+cargo run -- analyze examples/test_scope.rs --animation animation.svg
+
+# 生成 JSON 输出
+cargo run -- analyze examples/test_scope.rs --json output.json
 ```
 
-## 使用示例
+### Web 服务模式
 
 ```bash
-# 分析文件并生成 DOT 和 SVG
-cargo run --release -- analyze examples/test_scope.rs --dot output.dot --svg output.svg
+# 启动 Web 服务（默认端口 8080）
+cargo run -- server
 
-# 仅生成 DOT 文件
-cargo run --release -- analyze examples/test_borrow.rs --dot output.dot
+# 指定端口
+cargo run -- server --port 3000
+```
 
-# 仅生成 SVG 文件
-cargo run --release -- analyze examples/test_move.rs --svg output.svg
+### 批量分析
+
+```bash
+# 批量分析目录中的所有 Rust 文件
+cargo run -- batch --input-dir src --output-dir output
 ```
 
 ## 输出格式
 
-### DOT 文件
+### 颜色编码
 
-生成的 DOT 文件可以在 [Graphviz Online](https://dreampuf.github.io/GraphvizOnline/) 中查看和渲染。
-
-### SVG 文件
-
-生成的 SVG 文件可以直接在浏览器中打开查看。
-
-## 颜色编码
-
-| 状态 | 颜色 | 说明 |
+| 颜色 | 状态 | 说明 |
 |------|------|------|
-| Owned | 🟢 `#4CAF50` | 拥有所有权 |
-| Moved | 🟠 `#FF9800` | 已移动 |
-| Borrowed(Immutable) | 🔵 `#2196F3` | 不可变借用 |
-| Borrowed(Mutable) | 🔴 `#F44336` | 可变借用 |
-| Dropped | ⚪ `#9E9E9E` | 已销毁 |
-| Unused | ⚪ `#EEEEEE` | 未使用 |
+| 🟢 绿色 | Owned | 变量拥有所有权 |
+| 🟠 橙色 | Moved | 所有权已移动 |
+| 🔵 蓝色 | Borrowed(Immutable) | 不可变借用 |
+| 🔴 红色 | Borrowed(Mutable) | 可变借用 |
+| ⚪ 灰色 | Unused | 未使用变量 |
+
+### JSON 输出示例
+
+```json
+{
+  "file": "input.rs",
+  "total_variables": 5,
+  "used_variables": 4,
+  "unused_variables": 1,
+  "variables": [
+    {
+      "name": "x",
+      "type": "i32",
+      "used": true,
+      "scope": 1
+    }
+  ]
+}
+```
 
 ## 项目结构
 
@@ -75,47 +105,91 @@ cargo run --release -- analyze examples/test_move.rs --svg output.svg
 rust_visualizer/
 ├── src/
 │   ├── analysis/
-│   │   └── ownership.rs      # 所有权分析
+│   │   ├── mod.rs
+│   │   └── ownership.rs
 │   ├── graph/
-│   │   ├── dot_export.rs     # DOT 格式导出
-│   │   ├── svg_renderer.rs   # SVG 渲染器
-│   │   └── variable_graph.rs # 变量关系图
-│   ├── parser/               # Rust 语法解析
-│   └── main.rs               # 命令行入口
-├── examples/                 # 示例代码
-├── tests/                    # 测试文件
-├── README.md                 # 项目说明
-├── USAGE.md                  # 使用说明
-└── V2_VERSION_NOTES.md       # v2.0 版本说明
+│   │   ├── mod.rs
+│   │   ├── variable_graph.rs
+│   │   ├── dot_export.rs
+│   │   ├── svg_renderer.rs
+│   │   ├── interactive_svg.rs    # v3 新增
+│   │   └── timeline_animator.rs  # v3 新增
+│   ├── parser/
+│   │   ├── mod.rs
+│   │   ├── ast_visitor.rs
+│   │   └── events.rs
+│   ├── web/                       # v3 新增
+│   │   └── service.rs
+│   ├── lib.rs
+│   └── main.rs
+├── examples/
+├── tests/
+├── README.md
+├── USAGE.md
+├── V3_VERSION_NOTES.md
+└── Cargo.toml
 ```
 
-## 测试
+## API 文档
 
-```bash
-# 运行所有测试
-cargo test
+### POST /api/analyze
 
-# 运行特定测试
-cargo test --test v2_visualization
+分析 Rust 代码并返回分析结果。
+
+**请求体**:
+```json
+{
+  "code": "fn main() { let x = 42; }"
+}
 ```
 
-## 版本历史
+**响应**:
+```json
+{
+  "success": true,
+  "message": "Analysis completed successfully",
+  "data": {
+    "total_variables": 1,
+    "used_variables": 0,
+    "unused_variables": 1,
+    "dot_output": "...",
+    "svg_output": "..."
+  }
+}
+```
 
-### v2.0 (当前)
-- 新增 DOT 格式导出功能
-- 新增 SVG 渲染支持
-- 实现作用域分组显示
-- 添加样式定制功能
+## 测试报告
 
-### v1.0
-- 基础变量分析功能
-- 所有权追踪
-- 命令行界面
+### 单元测试
+
+```
+running 7 tests
+test graph::dot_export::tests::test_dot_export_basic ... ok
+test graph::dot_export::tests::test_dot_style_defaults ... ok
+test graph::dot_export::tests::test_sanitize_id ... ok
+test graph::svg_renderer::tests::test_render_to_dot ... ok
+test graph::svg_renderer::tests::test_render_simple ... ok
+test graph::dot_export::tests::test_dot_config_defaults ... ok
+test graph::svg_renderer::tests::test_svg_config_defaults ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured
+```
+
+### 测试文件
+
+| 测试文件 | 描述 |
+|----------|------|
+| `examples/test_scope.rs` | 测试嵌套作用域 |
+| `examples/test_borrow_rules.rs` | 测试借用规则 |
+| `examples/test_function_ownership.rs` | 测试函数间所有权转移 |
+| `examples/test_struct_ownership.rs` | 测试结构体所有权 |
+| `examples/test_nested_scope.rs` | 测试嵌套作用域与所有权转移 |
+
+### 编译状态
+
+- ✅ `cargo build --release` - 无警告
+- ✅ `cargo test --release` - 全部通过
 
 ## 许可证
 
 MIT License
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！

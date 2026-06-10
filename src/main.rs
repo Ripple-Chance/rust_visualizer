@@ -1,22 +1,19 @@
 use clap::{Parser, Subcommand};
+use colored::Colorize;
+use indicatif::{ProgressBar, ProgressStyle};
+use std::fs;
 use std::path::Path;
-use syn::visit::Visit;
 
-mod analysis;
-mod error;
-mod graph;
-mod parser;
-
-use error::{Result, VisualizerError};
-use graph::variable_graph::GraphBuilder;
-use graph::dot_export::{DotExporter, DotConfig};
-use graph::svg_renderer::{SvgRenderer, SvgConfig};
-use parser::{read_and_parse_file, AstVisitor};
-use analysis::{OwnershipAnalyzer, BorrowAnalyzer, LifetimeAnalyzer};
+use rust_visualizer::analysis::analyze;
+use rust_visualizer::graph::dot_export::DotExporter;
+use rust_visualizer::graph::interactive_svg::InteractiveSvgRenderer;
+use rust_visualizer::graph::svg_renderer::{SvgConfig, SvgRenderer};
+use rust_visualizer::graph::timeline_animator::TimelineAnimator;
+use rust_visualizer::parser::parse_code;
+use rust_visualizer::web::service::start_server;
 
 #[derive(Parser)]
-#[command(name = "rust_visualizer")]
-#[command(about = "Rust code ownership and lifetime visualizer", long_about = None)]
+#[command(name = "rust_visualizer", version = "3.0.0", about = "Rust code ownership visualizer")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -24,187 +21,243 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    #[command(about = "Analyze Rust source code")]
     Analyze {
-        #[arg(help = "Path to the Rust source file")]
-        file: String,
+        input_file: String,
         
-        #[arg(long, help = "List all variables")]
-        list_vars: bool,
-        
-        #[arg(long, help = "Show unused variables")]
-        unused: bool,
-        
-        #[arg(long, help = "Show all events")]
-        events: bool,
-        
-        #[arg(long, help = "Show ownership analysis")]
-        ownership: bool,
-        
-        #[arg(long, help = "Show borrow analysis")]
-        borrow: bool,
-        
-        #[arg(long, help = "Show lifetime analysis")]
-        lifetime: bool,
-        
-        #[arg(long, help = "Export to DOT format file")]
+        #[arg(long)]
         dot: Option<String>,
         
-        #[arg(long, help = "Export to SVG format file")]
+        #[arg(long)]
         svg: Option<String>,
         
-        #[arg(long, help = "Use horizontal layout")]
-        horizontal: bool,
+        #[arg(long)]
+        interactive: Option<String>,
+        
+        #[arg(long)]
+        animation: Option<String>,
+        
+        #[arg(long)]
+        html: Option<String>,
+        
+        #[arg(long)]
+        json: Option<String>,
+    },
+    
+    Server {
+        #[arg(long, default_value = "8080")]
+        port: u16,
+    },
+    
+    Batch {
+        input_dir: String,
+        
+        #[arg(long)]
+        output_dir: String,
     },
 }
 
-fn main() -> Result<()> {
+fn main() {
     let cli = Cli::parse();
-
+    
     match cli.command {
-        Commands::Analyze { file, list_vars, unused, events, ownership, borrow, lifetime, dot, svg, horizontal } => {
-            analyze_file(&file, list_vars, unused, events, ownership, borrow, lifetime, dot, svg, horizontal)
+        Commands::Analyze { 
+            input_file, 
+            dot, 
+            svg, 
+            interactive, 
+            animation,
+            html,
+            json 
+        } => {
+            analyze_file(&input_file, dot, svg, interactive, animation, html, json);
+        }
+        
+        Commands::Server { port } => {
+            println!("{} Starting web server on port {}...", 
+                "[INFO]".blue(), port.to_string().green());
+            let _ = tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(start_server(port));
+        }
+        
+        Commands::Batch { input_dir, output_dir } => {
+            batch_analyze(&input_dir, &output_dir);
         }
     }
 }
 
-fn analyze_file(file: &str, list_vars: bool, unused: bool, show_events: bool, 
-               ownership: bool, borrow: bool, lifetime: bool,
-               dot_file: Option<String>, svg_file: Option<String>, horizontal: bool) -> Result<()> {
-    let path = Path::new(file);
+fn analyze_file(
+    input_file: &str, 
+    dot: Option<String>, 
+    svg: Option<String>, 
+    interactive: Option<String>, 
+    animation: Option<String>,
+    html: Option<String>,
+    json: Option<String>
+) {
+    let pb = ProgressBar::new(4);
+    pb.set_style(ProgressStyle::default_bar()
+        .template("{spinner:.green} [{bar:40.cyan/blue}] {msg}")
+        .unwrap()
+        .progress_chars("#>-"));
     
-    if !path.exists() {
-        return Err(VisualizerError::InvalidInput(format!(
-            "File not found: {}",
-            file
-        )));
+    pb.set_message("Reading file...");
+    let content = fs::read_to_string(input_file).expect("Failed to read input file");
+    pb.inc(1);
+    
+    pb.set_message("Parsing code...");
+    let graph = parse_code(&content).expect("Failed to parse code");
+    pb.inc(1);
+    
+    pb.set_message("Analyzing ownership...");
+    let results = analyze(&graph);
+    pb.inc(1);
+    
+    let file_name = Path::new(input_file).file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "analysis".to_string());
+    
+    pb.set_message("Generating output...");
+    
+    if let Some(dot_path) = dot {
+        let exporter = DotExporter::new();
+        let dot_export = exporter.export(&graph, &results, Some(&file_name));
+        fs::write(&dot_path, dot_export.content).expect("Failed to write DOT file");
+        println!("{} DOT file exported to: {}", "[OK]".green(), dot_path.blue());
     }
-
-    let ast = read_and_parse_file(file)?;
     
-    let mut visitor = AstVisitor::new();
-    visitor.visit_file(&ast);
-
-    if show_events {
-        println!("=== Analysis Events ===");
-        for (i, event) in visitor.events.iter().enumerate() {
-            println!("{:4}: {}", i, event);
+    if let Some(svg_path) = svg {
+        let renderer = SvgRenderer::new();
+        let svg_render = renderer.render_simple(&graph, &results, Some(&file_name));
+        fs::write(&svg_path, svg_render.content).expect("Failed to write SVG file");
+        println!("{} SVG file exported to: {}", "[OK]".green(), svg_path.blue());
+    }
+    
+    if let Some(interactive_path) = interactive {
+        let config = SvgConfig::default();
+        let renderer = InteractiveSvgRenderer::new(config);
+        let svg_content = renderer.render_interactive(&graph, &results, &file_name);
+        fs::write(&interactive_path, svg_content).expect("Failed to write interactive SVG file");
+        println!("{} Interactive SVG file exported to: {}", "[OK]".green(), interactive_path.blue());
+    }
+    
+    if let Some(animation_path) = animation {
+        let animator = TimelineAnimator::new(graph.clone(), results.clone());
+        let svg_content = animator.generate_animated_svg(&file_name);
+        fs::write(&animation_path, svg_content).expect("Failed to write animation SVG file");
+        println!("{} Animated SVG file exported to: {}", "[OK]".green(), animation_path.blue());
+    }
+    
+    if let Some(html_path) = html {
+        let animator = TimelineAnimator::new(graph.clone(), results.clone());
+        let html_content = animator.generate_animated_html(&file_name);
+        fs::write(&html_path, html_content).expect("Failed to write HTML animation file");
+        println!("{} HTML animation file exported to: {}", "[OK]".green(), html_path.blue());
+    }
+    
+    if let Some(json_path) = json {
+        let used_count = graph.node_weights().filter(|n| n.used).count();
+        let total_count = graph.node_count();
+        let variables: Vec<_> = graph.node_weights().map(|n| {
+            serde_json::json!({
+                "name": n.name,
+                "is_mutable": n.is_mutable,
+                "used": n.used,
+                "scope_level": n.scope_level
+            })
+        }).collect();
+        let json_content = serde_json::json!({
+            "file": input_file,
+            "total_variables": total_count,
+            "used_variables": used_count,
+            "unused_variables": total_count - used_count,
+            "variables": variables
+        });
+        fs::write(&json_path, serde_json::to_string_pretty(&json_content).unwrap())
+            .expect("Failed to write JSON file");
+        println!("{} JSON file exported to: {}", "[OK]".green(), json_path.blue());
+    }
+    
+    pb.inc(1);
+    pb.finish_with_message("Analysis complete!");
+    
+    println!("\n{}", "=== Variable Analysis Summary ===".yellow());
+    let total_count = graph.node_count();
+    let used_count = graph.node_weights().filter(|n| n.used).count();
+    println!("Total variables: {}", total_count.to_string().bold());
+    println!("Used variables: {}", used_count.to_string().green());
+    println!("Unused variables: {}", (total_count - used_count).to_string().red());
+    
+    let unused_vars: Vec<_> = graph.node_weights()
+        .filter(|n| !n.used)
+        .map(|n| (n.name.clone(), n.scope_level))
+        .collect();
+    
+    if !unused_vars.is_empty() {
+        println!("\n{}", "Unused variables:".yellow());
+        for (name, scope) in unused_vars {
+            println!("  - {} (scope: {})", name, scope);
         }
-        println!();
     }
+}
 
-    let graph_builder = GraphBuilder::build_from_events(&visitor.events);
-
-    if list_vars || !unused && !ownership && !borrow && !lifetime {
-        graph_builder.print_summary();
-    }
-
-    if unused {
-        let unused_vars = graph_builder.find_unused_variables();
-        if unused_vars.is_empty() {
-            println!("All variables are used!");
-        } else {
-            println!("Unused variables:");
-            for var in unused_vars {
-                println!("  - {} (scope: {})", var.name, var.scope_level);
+fn batch_analyze(input_dir: &str, output_dir: &str) {
+    use walkdir::WalkDir;
+    
+    fs::create_dir_all(output_dir).expect("Failed to create output directory");
+    
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(ProgressStyle::default_spinner()
+        .template("{spinner:.green} {msg}")
+        .unwrap());
+    
+    let mut file_count = 0;
+    let mut success_count = 0;
+    
+    for entry in WalkDir::new(input_dir).into_iter().filter_map(|e| e.ok()) {
+        if entry.path().extension().map(|e| e == "rs").unwrap_or(false) {
+            file_count += 1;
+            pb.set_message(format!("Processing: {}", entry.path().display()));
+            
+            let file_name = entry.path().file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| format!("file{}", file_count));
+            
+            let content = match fs::read_to_string(entry.path()) {
+                Ok(c) => c,
+                Err(e) => {
+                    println!("{} Failed to read {}: {}", 
+                        "[ERROR]".red(), entry.path().display(), e);
+                    continue;
+                }
+            };
+            
+            let graph = match parse_code(&content) {
+                Ok(g) => g,
+                Err(e) => {
+                    println!("{} Failed to parse {}: {}", 
+                        "[ERROR]".red(), entry.path().display(), e);
+                    continue;
+                }
+            };
+            
+            let results = analyze(&graph);
+            
+            let svg_path = Path::new(output_dir).join(format!("{}.svg", file_name));
+            let renderer = SvgRenderer::new();
+            let svg_render = renderer.render_simple(&graph, &results, Some(&file_name));
+            
+            if fs::write(&svg_path, svg_render.content).is_ok() {
+                success_count += 1;
+            } else {
+                println!("{} Failed to write {}", 
+                    "[ERROR]".red(), svg_path.display());
             }
         }
     }
-
-    if ownership {
-        println!("=== Ownership Analysis ===");
-        let mut ownership_analyzer = OwnershipAnalyzer::new();
-        let ownership_results = ownership_analyzer.analyze(&visitor.events);
-        for result in ownership_results {
-            println!("{}", result);
-        }
-        println!();
-    }
-
-    if borrow {
-        println!("=== Borrow Analysis ===");
-        let mut borrow_analyzer = BorrowAnalyzer::new();
-        let borrow_results = borrow_analyzer.analyze(&visitor.events);
-        for result in borrow_results {
-            println!("{}", result);
-        }
-        
-        let long_chains = borrow_analyzer.find_long_borrow_chains(3);
-        if !long_chains.is_empty() {
-            println!("\nLong borrow chains (threshold: 3 references):");
-            for (name, count) in long_chains {
-                println!("  - {}: {} references", name, count);
-            }
-        }
-        println!();
-    }
-
-    if lifetime {
-        println!("=== Lifetime Analysis ===");
-        let mut lifetime_analyzer = LifetimeAnalyzer::new();
-        let lifetime_results = lifetime_analyzer.analyze(&visitor.events);
-        for result in lifetime_results {
-            println!("{}", result);
-        }
-        
-        let summary = lifetime_analyzer.get_lifetime_summary();
-        println!("\nLifetime Summary:");
-        for (name, references) in summary {
-            println!("  - {}: {} references", name, references);
-        }
-        println!();
-    }
-
-    // Export to DOT format
-    if let Some(dot_path) = dot_file {
-        let mut ownership_analyzer = OwnershipAnalyzer::new();
-        let ownership_results = ownership_analyzer.analyze(&visitor.events);
-        
-        let config = DotConfig {
-            title: "Rust Ownership Graph".to_string(),
-            show_ownership: true,
-            show_borrows: true,
-            show_scopes: true,
-            horizontal,
-            show_unused: true,
-        };
-        
-        let exporter = DotExporter::with_config(config);
-        let graph = graph_builder.get_graph();
-        let dot_export = exporter.export(&graph, ownership_results, Some(file));
-        
-        std::fs::write(&dot_path, &dot_export.content)
-            .map_err(|e| VisualizerError::InvalidInput(format!("Failed to write DOT file: {}", e)))?;
-        
-        println!("✓ DOT file exported to: {}", dot_path);
-        println!("  Nodes: {}, Edges: {}", dot_export.node_count, dot_export.edge_count);
-        println!("  Use 'dot -Tpng {} -o output.png' to generate PNG", dot_path);
-    }
-
-    // Export to SVG format
-    if let Some(svg_path) = svg_file {
-        let mut ownership_analyzer = OwnershipAnalyzer::new();
-        let ownership_results = ownership_analyzer.analyze(&visitor.events);
-        
-        let config = SvgConfig {
-            width: 1200,
-            height: 800,
-            background: Some("#FFFFFF".to_string()),
-            font_family: "Arial, sans-serif".to_string(),
-            font_size: 12,
-            title: None,
-        };
-        
-        let renderer = SvgRenderer::with_config(config);
-        let graph = graph_builder.get_graph();
-        let svg = renderer.render_simple(&graph, ownership_results, Some(file));
-        
-        renderer.export_to_file(&svg, Path::new(&svg_path))
-            .map_err(|e| VisualizerError::InvalidInput(e))?;
-        
-        println!("✓ SVG file exported to: {}", svg_path);
-        println!("  Open this file in a web browser to view");
-    }
-
-    Ok(())
+    
+    pb.finish_with_message("Batch processing complete!");
+    
+    println!("\n{}", "=== Batch Analysis Summary ===".yellow());
+    println!("Total files processed: {}", file_count);
+    println!("Success: {}", success_count.to_string().green());
+    println!("Failed: {}", (file_count - success_count).to_string().red());
 }
